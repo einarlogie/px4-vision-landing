@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PX4's x500 quadrotor with a downward-facing camera sized for a laptop.
+
+     PX4 ships x500_mono_cam_down (1280x960 @ 30 Hz). On a laptop iGPU through
+     WSL that camera drags the simulation to ~2% of real time, because Gazebo
+     runs in lockstep and waits for every rendered frame. 640x480 @ 15 Hz keeps
+     the sim near real time and is plenty for a 0.8 m marker.
+
+     Gazebo cameras look along their link's +x axis. Pitching the link +90 deg
+     about y points that axis straight down (body -z in Gazebo's FLU frame). -->
+<sdf version="1.9">
+  <model name="x500_vision_down">
+    <self_collide>false</self_collide>
+    <include merge="true">
+      <uri>model://x500</uri>
+    </include>
+
+    <link name="camera_link">
+      <pose relative_to="base_link">0 0 -0.05 0 1.5707963 0</pose>
+      <inertial>
+        <mass>0.02</mass>
+        <inertia>
+          <ixx>1e-5</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-5</iyy><iyz>0</iyz><izz>1e-5</izz>
+        </inertia>
+      </inertial>
+      <sensor name="camera" type="camera">
+        <camera>
+          <horizontal_fov>1.5707963</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.05</near>
+            <far>200</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>15</update_rate>
+        <visualize>false</visualize>
+      </sensor>
+    </link>
+
+    <joint name="camera_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+    </joint>
+  </model>
+</sdf>

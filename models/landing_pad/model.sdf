@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 1.0 m square landing pad. The texture (marker.png, made by
+     tools/make_marker.py) is an ArUco DICT_4X4_50 marker whose black square
+     is 0.80 m wide, centred, with a white quiet zone around it. The pad's
+     origin is the marker centre, on the top surface. -->
+<sdf version="1.9">
+  <model name="landing_pad">
+    <static>true</static>
+    <link name="base">
+      <collision name="collision">
+        <pose>0 0 -0.01 0 0 0</pose>
+        <geometry><box><size>1.0 1.0 0.02</size></box></geometry>
+      </collision>
+      <visual name="slab">
+        <pose>0 0 -0.01 0 0 0</pose>
+        <geometry><box><size>1.0 1.0 0.02</size></box></geometry>
+        <material>
+          <ambient>0.9 0.9 0.9 1</ambient>
+          <diffuse>0.9 0.9 0.9 1</diffuse>
+        </material>
+      </visual>
+      <visual name="marker">
+        <pose>0 0 0.001 0 0 0</pose>
+        <geometry><plane><normal>0 0 1</normal><size>1.0 1.0</size></plane></geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
+          <pbr><metal>
+            <albedo_map>model://landing_pad/materials/marker.png</albedo_map>
+            <metalness>0</metalness>
+            <roughness>1</roughness>
+          </metal></pbr>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
