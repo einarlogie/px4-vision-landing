@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.egg-info/
+# run outputs: large media stays local; summaries are committed explicitly
+output/
