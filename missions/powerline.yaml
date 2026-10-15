@@ -1,0 +1,36 @@
+# Inspection mission for the demo power line.
+#
+# Positions are metres from the take-off point (home) in PX4's local frame:
+# north_m / east_m. Altitudes are metres above home. This file is the single
+# source of truth: tools/gen_powerline_world.py builds worlds/powerline.sdf
+# from it, and scripts/run_mission.py flies it.
+
+name: demo-line-inspection
+
+cruise:
+  altitude_m: 20.0        # transit altitude; must clear every tower + clearance
+  speed_m_s: 3.0
+
+inspection:
+  clearance_m: 6.0        # hover this far above each tower top to photograph it
+  hover_s: 2.0            # settle time before the capture (simulation seconds)
+
+landing_pad:
+  north_m: 2.0
+  east_m: 3.0
+  marker_id: 0
+  approach_altitude_m: 6.0
+
+towers:                   # flown in this order, then back to the pad
+  - id: T1
+    north_m: 15.0
+    east_m: 12.0
+    height_m: 12.0
+  - id: T2
+    north_m: 35.0
+    east_m: 12.0
+    height_m: 12.0
+  - id: T3
+    north_m: 55.0
+    east_m: 12.0
+    height_m: 12.0
