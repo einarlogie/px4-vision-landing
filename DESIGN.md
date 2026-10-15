@@ -164,17 +164,59 @@ That heading result shaped the controller design: it works in the level
 frame and commands body-frame velocities, so a heading-estimate error
 cannot rotate its corrections.
 
-## 5. Precision landing controller *(planned)*
+## 5. Precision landing controller
 
-A state machine in Python that sends velocity setpoints:
-`SEARCH → ALIGN → DESCEND → LAND`, plus `LOST → HOLD → CLIMB → re-acquire`.
-Kept as a pure function of (state, measurement, time) so it can be unit-tested
-without the simulator.
+```
+            marker seen                  low (< 0.8 m) and centred (< 0.10 m)
+  SEARCH ───────────────► TRACK ─────────────────────────────────► FINAL ──► PX4 LAND
+    │                    ▲  │ marker lost                               (autopilot)
+    │ 20 s               │  ▼
+    │           seen     │ HOLD ── 1 s ──► CLIMB (0.5 m/s, ≤ 10 m)
+    ▼           again ───┴───────────────────┘   │
+  ABORT ◄──────────────── lost 15 s ─────────────┘
+```
 
-**Alternative considered:** PX4's built-in precision landing, which takes
-`LANDING_TARGET` MAVLink messages and runs its own estimator. That's closer to
-production but hides the control logic behind PX4 parameters, and the goal
-here is to show the control loop explicitly.
+`vland/lander.py` is pure logic: `update(t, target, altitude) → command`,
+where `target` is the pad position in the level frame (or `None`) and `t`
+is simulation time. It has no I/O, so `tests/test_lander.py` drives it
+through every transition without a simulator. `vland/landing.py` connects
+it to the camera, detector and MAVSDK.
+
+**The control law in TRACK**
+
+- Horizontal: `v = kp · e`, with `kp = 0.8 /s`, limited to 1.0 m/s (0.4 m/s
+  below 2 m). PX4's own position/velocity loops handle the vehicle
+  dynamics; this outer loop only decides where to go.
+- Vertical: descend (0.7 m/s, 0.3 m/s below 2 m) **only while inside a
+  cone** around the pad axis: allowed error = 0.15 m + 0.12 × height. Far
+  off-centre the drone centres first, then descends. The cone keeps the
+  marker in view (the field of view shrinks on the ground as the drone
+  descends) and stops a lateral error from turning into a landing miss.
+- Commands are body-frame velocities, which PX4 interprets in the level
+  (heading-aligned) frame, the same frame the target is measured in. Heading
+  error doesn't enter the loop (see §4).
+
+**Why hand over to PX4 for the last 0.8 m.** Below about half a metre the
+0.8 m marker overflows the 90° camera view and can no longer be tracked.
+Once the drone is low *and* centred, PX4's LAND mode holds the current
+position and handles touchdown detection and disarm, which it does robustly.
+This is also how PX4's built-in precision landing and most fiducial-landing
+systems finish.
+
+**Losing the marker.** Most losses last a frame or two (glare, motion
+blur, a partial occlusion), so the first response is to stop and HOLD.
+After 1 s the drone CLIMBs slowly, because a higher camera sees a larger
+patch of ground. When the marker reappears it goes straight back to TRACK.
+After 15 s lost it ABORTs (in this demo: a normal landing, flagged in the
+results). The response is tested in simulation by hiding the marker from
+the controller for a configurable window (`--occlusion start,duration`).
+
+**Alternative considered:** PX4's built-in precision landing (and the
+newer `vision_target_estimator` module, which runs in this PX4 build). It
+takes `LANDING_TARGET` MAVLink messages and fuses them in a Kalman filter
+with IMU data, which handles latency and noise better than a raw
+P-controller. On a production vehicle that's what I'd build on. Here the
+goal is to show and explain the control loop, so it's explicit Python.
 
 ## 6. Measuring accuracy
 

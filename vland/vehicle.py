@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
 from mavsdk_grpc import System
-from mavsdk_grpc.offboard import OffboardError, VelocityBodyYawspeed, VelocityNedYaw
+from mavsdk_grpc.offboard import OffboardError, PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw
 
 log = logging.getLogger(__name__)
 
@@ -128,6 +129,24 @@ class Vehicle:
 
     async def set_velocity_ned(self, north: float, east: float, down: float, yaw_deg: float) -> None:
         await self.drone.offboard.set_velocity_ned(VelocityNedYaw(north, east, down, yaw_deg))
+
+    async def goto_ned(self, north: float, east: float, down: float, yaw_deg: float,
+                       tol: float = 0.3, timeout: float = 180.0) -> None:
+        """Fly to a local NED position (offboard position setpoint) and wait
+        until within `tol` metres and nearly stopped. Timeout is wall-clock."""
+        target = np.array([north, east, down])
+        await self.drone.offboard.set_position_ned(PositionNedYaw(north, east, down, yaw_deg))
+        async with asyncio.timeout(timeout):
+            while True:
+                dist = np.linalg.norm(self.state.pos_ned - target)
+                if dist < tol and np.linalg.norm(self.state.vel_ned) < 0.3:
+                    return
+                await asyncio.sleep(0.1)
+
+    @property
+    def heading_deg(self) -> float:
+        w, x, y, z = self.state.q_wxyz
+        return math.degrees(math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)))
 
     async def stop_offboard(self) -> None:
         try:
