@@ -45,3 +45,4 @@ services:
       <<: *common-env
       HOME: /tmp
     command: ["sleep", "infinity"]
+    init: true                           # reap child processes (mavsdk_server)

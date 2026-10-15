@@ -100,9 +100,69 @@ Conclusions:
 - Shadows are disabled in the worlds: shadow maps cost more than the camera
   image itself on these renderers.
 
-## 4. Coordinate frames *(planned, verified in milestone 2)*
+## 4. Camera pipeline, pose estimation and coordinate frames
 
-To be filled in with the verified conventions.
+### Camera pipeline
+
+Gazebo renders the camera and publishes each frame as a `gz.msgs.Image` on
+`/world/<world>/model/x500_vision_down_0/link/camera_link/sensor/camera/image`.
+`vland/camera.py` subscribes through the gz-transport Python bindings,
+reshapes the bytes into a 480×640×3 numpy array and flips RGB to BGR for
+OpenCV. It keeps only the latest frame: a controller wants the freshest
+measurement, and a queue would only add latency. Each frame carries its
+simulation timestamp, which the controller uses as its clock.
+
+### Pose estimation
+
+1. **Detect.** OpenCV's ArUco detector finds the marker's four corners and
+   decodes its ID. Sub-pixel corner refinement makes the pose steadier.
+2. **Solve.** `solvePnP` with `SOLVEPNP_IPPE_SQUARE` (a solver made for
+   four corners of a square of known size) finds the marker pose that best
+   explains those corners. The translation is the marker centre in the
+   camera's optical frame, in metres.
+3. **Intrinsics.** The simulated camera is an ideal pinhole: focal length
+   `fx = (W/2) / tan(HFOV/2) = 320 / tan(45°) = 320 px`, principal point
+   at the image centre, no lens distortion. On real hardware these come
+   from a checkerboard calibration instead.
+
+### Frames
+
+| Frame | Axes | Used for |
+|---|---|---|
+| Camera optical (OpenCV) | x right, y down (in the image), z out of the lens | solvePnP output |
+| Body FRD (PX4) | x forward, y right, z down | where the pad is relative to the drone |
+| Level | body heading, but horizontal (roll and pitch removed) | the landing controller |
+| Local NED (PX4) | x north, y east, z down | logging, mission waypoints |
+| Gazebo world ENU | x east, y north, z up | ground truth only |
+
+The camera looks straight down with the top of the image towards the nose,
+so the optical-to-body rotation is a fixed permutation: image right = body
+right, image down = body backward, lens axis = body down. This was checked
+in flight: with the drone facing east and the pad 3 m east and 2 m north,
+the marker appears in the top-left of the image (ahead and to the left).
+
+**Tilt compensation.** The camera is fixed to the body, so when the drone
+tilts to move, the image tilts too. At 6 m a 10° tilt shifts the apparent
+pad position by about 1 m. Rotating the body-frame vector through the
+vehicle attitude (`body_to_level`, `body_to_ned`) removes that error.
+
+### Measured accuracy (milestone 2 flight)
+
+`scripts/detect_marker.py` takes off 3.6 m from the pad, hovers at 6 m,
+drifts over the pad and compares the vision estimate with Gazebo's ground
+truth. Measured against PX4's body origin (`base_link`, 0.24 m above the
+Gazebo model origin):
+
+- The marker was detected in 210 of 211 frames, at 6–7 m range.
+- Range error is about +1.5% (≈0.10 m at 7 m).
+- At hover, 3.6 m from the pad, horizontal error in NED was ≈0.37 m. This
+  comes from **heading**: PX4's yaw estimate was ≈96° while the true heading
+  was 90°, and 3.6 m × sin 6° ≈ 0.38 m. Directly above the pad the horizontal
+  error falls to 2–3 cm.
+
+That heading result shaped the controller design: it works in the level
+frame and commands body-frame velocities, so a heading-estimate error
+cannot rotate its corrections.
 
 ## 5. Precision landing controller *(planned)*
 

@@ -11,10 +11,13 @@ from vland.vehicle import Vehicle
 
 async def main(alt: float, hover_s: float) -> None:
     v = Vehicle()
-    await v.connect()
-    await v.arm_and_takeoff(alt)
-    await asyncio.sleep(hover_s)
-    await v.land_and_wait()
+    try:
+        await v.connect()
+        await v.arm_and_takeoff(alt)
+        await asyncio.sleep(hover_s)
+        await v.land_and_wait()
+    finally:
+        await v.close()
 
 
 if __name__ == "__main__":

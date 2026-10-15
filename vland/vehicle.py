@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 
+import numpy as np
 from mavsdk_grpc import System
 from mavsdk_grpc.offboard import OffboardError, VelocityBodyYawspeed, VelocityNedYaw
 
@@ -16,10 +18,54 @@ log = logging.getLogger(__name__)
 DEFAULT_ADDRESS = "udpin://0.0.0.0:14540"
 
 
+@dataclass
+class VehicleState:
+    """Latest telemetry, updated in the background."""
+    q_wxyz: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)  # body FRD -> NED
+    pos_ned: np.ndarray = field(default_factory=lambda: np.zeros(3))
+    vel_ned: np.ndarray = field(default_factory=lambda: np.zeros(3))
+    attitude_stamp_us: int = 0
+
+
 class Vehicle:
     def __init__(self, address: str = DEFAULT_ADDRESS):
         self.address = address
         self.drone = System()
+        self.state = VehicleState()
+        self._tasks: list[asyncio.Task] = []
+
+    async def start_telemetry(self, rate_hz: float = 30.0) -> None:
+        """Keep self.state current from MAVSDK telemetry streams."""
+        await self.drone.telemetry.set_rate_attitude_quaternion(rate_hz)
+        await self.drone.telemetry.set_rate_position_velocity_ned(rate_hz)
+
+        async def attitude():
+            async for q in self.drone.telemetry.attitude_quaternion():
+                self.state.q_wxyz = (q.w, q.x, q.y, q.z)
+                self.state.attitude_stamp_us = q.timestamp_us
+
+        async def position():
+            async for pv in self.drone.telemetry.position_velocity_ned():
+                p, v = pv.position, pv.velocity
+                self.state.pos_ned = np.array([p.north_m, p.east_m, p.down_m])
+                self.state.vel_ned = np.array([v.north_m_s, v.east_m_s, v.down_m_s])
+
+        self._tasks += [asyncio.create_task(attitude()), asyncio.create_task(position())]
+        await asyncio.sleep(0.5)
+
+    async def close(self) -> None:
+        """Stop telemetry and the mavsdk_server subprocess.
+
+        Must be called before the program exits. mavsdk_grpc reads the
+        server's output on a non-daemon thread and only kills the server in an
+        atexit handler, but Python joins non-daemon threads *before* running
+        atexit handlers, so without this the interpreter hangs on exit.
+        """
+        for t in self._tasks:
+            t.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+        self.drone._stop_mavsdk_server()
 
     async def connect(self, timeout: float = 60.0) -> None:
         log.info("connecting to %s", self.address)
