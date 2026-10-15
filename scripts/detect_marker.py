@@ -84,8 +84,7 @@ async def main(a) -> None:
         await observe(a.move, "moving")
         await v.set_velocity_ned(0.0, 0.0, 0.0, heading)
         await observe(3.0, "braking")
-        await v.stop_offboard()
-        await v.land_and_wait()
+        await v.land_and_wait()      # straight from offboard to LAND
     finally:
         rec.close()
         await v.close()

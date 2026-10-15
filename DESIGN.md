@@ -203,6 +203,20 @@ position and handles touchdown detection and disarm, which it does robustly.
 This is also how PX4's built-in precision landing and most fiducial-landing
 systems finish.
 
+**A handover bug found in testing.** The first version left offboard mode
+(which puts PX4 in HOLD) and then sent the land command. In the 9th run of
+the first batch, the command was acknowledged but PX4 stayed in HOLD: the
+drone sat on the pad, armed, for six minutes, and the script waited for a
+touchdown that PX4 never declared. Two lessons, both now in the code
+(`Vehicle.command_land`):
+
+- Go straight from offboard to LAND, with no intermediate mode.
+- An accepted command isn't a mode change. Confirm the mode from telemetry
+  and retry if it doesn't appear, and put a timeout on every wait.
+
+That batch's results were discarded; every number in the README comes from
+runs of the fixed code.
+
 **Losing the marker.** Most losses last a frame or two (glare, motion
 blur, a partial occlusion), so the first response is to stop and HOLD.
 After 1 s the drone CLIMBs slowly, because a higher camera sees a larger
@@ -224,14 +238,73 @@ Landing error is measured from Gazebo's ground-truth poses (vehicle vs. pad),
 not from the camera, so the measurement is independent of the system being
 measured. Every number in the README comes from a logged run in `results/`.
 
-## 7. Mission plan *(planned)*
+## 7. Mission plan
 
-YAML file with the tower positions, cruise altitude, standoff offset and
-capture settings, parsed into validated dataclasses. Control code never
-hard-codes waypoints.
+`missions/powerline.yaml` holds everything about *where*: cruise altitude
+and speed, inspection clearance and settle time, the pad position and
+marker ID, and the ordered tower list. `vland/mission.py` parses it into
+frozen dataclasses and validates it up front: required fields, numeric
+types, unique tower IDs, and a safety rule that the cruise altitude must be
+at least the highest inspection altitude, so a transit can't clip a tower.
+A bad plan fails on the ground with a clear message, not mid-flight.
 
-## 8. Limitations and real-world gaps *(planned)*
+The same file generates the Gazebo world (`tools/gen_powerline_world.py`):
+towers, crossarms, insulators and three conductors per span are placed from
+the plan. The simulated world and the plan can't disagree.
 
-Wind and gusts, GPS-denied relative navigation near conductors, EMI effects on
-the magnetometer and links, edge compute budget, and fiducial markers vs.
-detecting the line itself.
+Flight (`scripts/run_mission.py`):
+
+1. Take off and climb to cruise altitude.
+2. For each tower: transit at cruise speed, descend to tower height plus
+   clearance, settle for `hover_s` (simulation time), save an annotated
+   image, climb back to cruise.
+3. Return to the pad, descend to the approach altitude and run the same
+   precision-landing routine as milestone 3.
+4. Measure landing error against ground truth and write `summary.json`.
+
+`Vehicle.fly_to` uses velocity setpoints along the straight line at the
+planned speed, slowing over the last metres. Bare position setpoints would
+let PX4 fly at its maximum speed.
+
+**Simplifications.** The towers are simple box geometry and the conductors
+are straight (no catenary sag). The camera points down, so inspection images
+are taken from above the tower top, not from the side as a real inspection
+camera would.
+
+## 8. Limitations and the gap to docking on a live line
+
+This is a simulation demo of the *pattern*: perception → relative pose →
+closed-loop guidance → handover to the autopilot. Docking on an energised
+conductor is a much harder version of the same problem:
+
+- **Wind and turbulence.** The sim has no wind. Gusts at conductor height,
+  plus the line itself swinging, mean the target moves. You'd estimate the
+  target's motion (a Kalman filter over target position and velocity, as
+  PX4's `vision_target_estimator` does) and add feed-forward, not just a
+  P-controller on the current error.
+- **GPS-denied, relative navigation.** Near a line the job is *relative*
+  positioning to the conductor at centimetre level, which GNSS can't give
+  (multipath near steel structures, no RTK in remote areas). Relative
+  sensing, from the camera, lidar or the line's own magnetic field, becomes
+  the primary navigation source, with GNSS only for transit.
+- **EMI near conductors.** High-voltage lines produce strong, varying
+  magnetic fields, which corrupt the magnetometer and with it the heading.
+  This demo already measured a 6° heading-estimate error with *no* EMI, and
+  the controller was designed to be independent of heading for exactly that
+  reason. Near a line you'd go further: no magnetometer fusion close in,
+  heading from vision or a dual-antenna GNSS.
+- **No fiducials on the line.** A marker on a pad is the easy case. A real
+  docking system has to detect the conductor itself, a thin, low-contrast
+  object against sky or terrain: learned detectors, line fitting, or lidar.
+- **Edge compute.** All perception here runs on a desktop CPU at 15 Hz.
+  On the aircraft it has to fit a companion computer's power and thermal
+  budget alongside logging and comms, which pushes towards fixed-latency
+  pipelines and hardware acceleration.
+- **Latency and timing.** The camera frame and the attitude used to rotate
+  it are paired by "latest available", not by timestamp. That's fine at
+  these speeds but should be interpolated properly for aggressive motion.
+- **Real cameras.** Intrinsics from calibration, lens distortion, rolling
+  shutter, exposure changes and glare off the pad.
+- **Safety architecture.** Geofences, a hard minimum distance to
+  conductors, link-loss behaviour and an independent abort path. Here,
+  ABORT just lands normally.

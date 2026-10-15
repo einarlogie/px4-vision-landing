@@ -89,8 +89,10 @@ async def precision_land(v: Vehicle, cam: GzCamera, det: MarkerDetector, marker_
     t_handover = last_stamp
     log.info("%s after %.1f s sim (%d marker losses)", lander.phase.value, t_handover - t0, lander.loss_events)
     await v.set_velocity_body(0.0, 0.0, 0.0)
-    await v.stop_offboard()
-    await v.drone.action.land()
+    # Straight from offboard to LAND, confirmed by telemetry. (Stopping
+    # offboard first puts PX4 in HOLD; one test run then sat in HOLD on the
+    # pad indefinitely. See DESIGN.md §5.)
+    await v.command_land()
 
     # Keep recording the final descent until touchdown.
     stop = asyncio.Event()

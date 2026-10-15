@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from mavsdk_grpc import System
 from mavsdk_grpc.offboard import OffboardError, PositionNedYaw, VelocityBodyYawspeed, VelocityNedYaw
+from mavsdk_grpc.telemetry import FlightMode
 
 log = logging.getLogger(__name__)
 
@@ -92,13 +93,37 @@ class Vehicle:
         log.info("reached takeoff altitude %.1f m", altitude_m)
 
     async def land_and_wait(self) -> None:
-        await self.drone.action.land()
+        await self.command_land()
         await self.wait_landed()
 
-    async def wait_landed(self, disarm_timeout: float = 15.0) -> None:
-        async for in_air in self.drone.telemetry.in_air():
-            if not in_air:
-                break
+    async def command_land(self, attempts: int = 3, confirm_timeout: float = 5.0) -> None:
+        """Switch PX4 to LAND and confirm it actually happened.
+
+        An accepted command is not proof of a mode change. In testing, a land
+        command sent right after leaving offboard was acknowledged but PX4
+        stayed in HOLD, hovering on the pad indefinitely. So: send it, watch
+        the reported flight mode, and retry if LAND doesn't appear.
+        Call this *from* offboard mode; don't stop offboard first (that
+        switches PX4 to HOLD).
+        """
+        for attempt in range(1, attempts + 1):
+            await self.drone.action.land()
+            try:
+                async with asyncio.timeout(confirm_timeout):
+                    async for mode in self.drone.telemetry.flight_mode():
+                        if mode == FlightMode.LAND:
+                            log.info("PX4 in LAND mode")
+                            return
+            except TimeoutError:
+                log.warning("LAND not confirmed (attempt %d/%d)", attempt, attempts)
+        raise RuntimeError("PX4 did not enter LAND mode")
+
+    async def wait_landed(self, disarm_timeout: float = 15.0, land_timeout: float = 180.0) -> None:
+        """Wait for touchdown and disarm. Timeouts are wall-clock."""
+        async with asyncio.timeout(land_timeout):
+            async for in_air in self.drone.telemetry.in_air():
+                if not in_air:
+                    break
         log.info("landed")
         # PX4 auto-disarms shortly after touchdown (COM_DISARM_LAND); give it
         # a moment, then disarm explicitly so a script never hangs here.

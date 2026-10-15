@@ -54,6 +54,10 @@ async def main(a) -> None:
     det = MarkerDetector()
     v = Vehicle()
     rec = Recorder(a.video.format(run=run_id) if a.video else None, show=a.show)
+    # Every run gets a row, including failures: a run that errors out is
+    # recorded as ERROR rather than silently missing from the statistics.
+    row = {"run_id": run_id, "seed": a.seed, "offset_n": round(off_n, 3), "offset_e": round(off_e, 3),
+           "occlusion": f"{a.occlusion[0]}+{a.occlusion[1]}" if a.occlusion else "", "outcome": "ERROR"}
     try:
         await v.connect()
         await v.start_telemetry()
@@ -75,26 +79,30 @@ async def main(a) -> None:
         log.info("RESULT %s: landing error %.3f m (N %+.3f, E %+.3f), losses %d, vision phase %.1f s sim",
                  outcome.phase.value, err_h, err[0], err[1], outcome.loss_events,
                  outcome.t_handover - outcome.t_start)
+        row.update({"outcome": outcome.phase.value, "loss_events": outcome.loss_events,
+                    "vision_time_s": round(outcome.t_handover - outcome.t_start, 2),
+                    "error_m": round(err_h, 4), "error_n": round(float(err[0]), 4),
+                    "error_e": round(float(err[1]), 4)})
+    except Exception as e:
+        log.error("RESULT ERROR: %s: %s", type(e).__name__, e)
+        raise
     finally:
         rec.close()
         await v.close()
+        if a.results:
+            write_result(Path(a.results), row)
 
-    if a.results:
-        path = Path(a.results)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        new = not path.exists()
-        with open(path, "a", newline="") as fh:
-            w = csv.DictWriter(fh, RESULT_FIELDS)
-            if new:
-                w.writeheader()
-            w.writerow({"run_id": run_id, "utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                        "seed": a.seed, "offset_n": round(off_n, 3), "offset_e": round(off_e, 3),
-                        "occlusion": f"{a.occlusion[0]}+{a.occlusion[1]}" if a.occlusion else "",
-                        "outcome": outcome.phase.value, "loss_events": outcome.loss_events,
-                        "vision_time_s": round(outcome.t_handover - outcome.t_start, 2),
-                        "error_m": round(err_h, 4), "error_n": round(float(err[0]), 4),
-                        "error_e": round(float(err[1]), 4)})
-        log.info("appended to %s", path)
+
+def write_result(path: Path, row: dict) -> None:
+    row = {"utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), **row}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    new = not path.exists()
+    with open(path, "a", newline="") as fh:
+        w = csv.DictWriter(fh, RESULT_FIELDS)
+        if new:
+            w.writeheader()
+        w.writerow(row)
+    log.info("appended to %s", path)
 
 
 def pair(s: str) -> tuple[float, float]:
