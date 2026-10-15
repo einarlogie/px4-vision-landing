@@ -25,8 +25,8 @@ conductors, GPS-denied state estimation.
 |---|---|---|
 | Flight stack | PX4 SITL, official image `px4io/px4-sitl-gazebo:v1.18.0-rc1`, pinned by digest | Closest to a real autopilot; prebuilt so a reviewer starts in minutes |
 | Simulator | Gazebo Harmonic (gz-sim 8), shipped in that image | PX4's supported simulator; has a camera sensor model |
-| Vehicle | `x500_mono_cam_down` | Stock PX4 quad with a downward camera; no custom airframe needed |
-| Vehicle API | MAVSDK-Python, offboard velocity setpoints | Small, explicit API over MAVLink; same protocol as a real companion computer |
+| Vehicle | `x500_vision_down` (this repo): PX4's x500 + a 640×480 @ 15 Hz downward camera | The stock `x500_mono_cam_down` camera is too heavy for a laptop (see §3.1); flown with the stock x500 airframe parameters |
+| Vehicle API | MAVSDK-Python (`mavsdk-grpc` package), offboard velocity setpoints | Small, explicit API over MAVLink; same protocol as a real companion computer |
 | Camera transport | `gz.transport13` Python bindings (installed in the image) | Reads the camera topic directly, so there's no ROS bridge to set up and debug |
 | Vision | OpenCV ArUco + `solvePnP` | Well understood, deterministic, and easy to explain |
 
@@ -60,6 +60,45 @@ Both services use the same image. `app` runs with `network_mode: service:sim`,
 so PX4, Gazebo and the Python code share one network namespace. That keeps
 gz-transport's discovery and the MAVLink API link on localhost, with no
 multicast or port mapping across Docker networks to get wrong.
+
+### MAVSDK package naming
+
+In 2026 the PyPI name `mavsdk` moved to a new native binding (4.x) with a
+different API. The familiar gRPC-based API continues as `mavsdk-grpc`
+(`import mavsdk_grpc`). This project uses `mavsdk-grpc==4.0.5`, which keeps
+the API most PX4 examples and docs use.
+
+### 3.1 Simulation speed on a laptop
+
+PX4 and Gazebo run in **lockstep**: simulated time only advances when every
+sensor, including the camera, has produced its data. So a slow camera
+render slows the whole simulation, not just the video. Measured on the
+development laptop (i5-1345U, Iris Xe, WSL2), as real-time factor (RTF,
+1.0 = real time) or camera frames per wall-clock second:
+
+| Configuration | Result |
+|---|---|
+| x500, no camera, headless | RTF 1.0 |
+| Stock `x500_mono_cam_down` (1280×960 @ 30 Hz), GPU via Mesa D3D12 | RTF 0.01–0.02 |
+| Stock camera, CPU rendering (llvmpipe) | ≈0.9 frames/s (RTF ≈0.03) |
+| `x500_vision_down` (640×480 @ 15 Hz), GPU via D3D12, headless | 5.9 frames/s (RTF ≈0.4) |
+| `x500_vision_down`, llvmpipe, headless | 12.3 frames/s (RTF ≈0.8) |
+| `x500_vision_down`, llvmpipe server + GUI on D3D12 | 5.8 frames/s (RTF ≈0.4) |
+
+Conclusions:
+
+- Under WSL the GPU path is slower than CPU rendering for the camera,
+  because every frame has to be copied back from the GPU through the D3D12
+  translation layer. The Gazebo server therefore renders with llvmpipe,
+  while the GUI (which only draws to the screen) uses the GPU. The custom
+  entrypoint starts them as separate processes so each gets its own driver.
+- The GUI costs about half the speed. Batch experiments run with `GUI=0`.
+- Because of lockstep, a slower simulation is still a *correct* simulation:
+  PX4's estimator and controllers see consistent simulated time. The control
+  code uses simulation time (frame timestamps) for its dt, never wall-clock
+  time, so results don't depend on how fast the host is.
+- Shadows are disabled in the worlds: shadow maps cost more than the camera
+  image itself on these renderers.
 
 ## 4. Coordinate frames *(planned, verified in milestone 2)*
 

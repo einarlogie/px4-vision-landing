@@ -1,0 +1,26 @@
+# WSLg display + GPU passthrough for Docker Desktop on Windows (run from WSL).
+# GUI windows (Gazebo, OpenCV) appear on the Windows desktop.
+# GALLIUM_DRIVER=d3d12 renders on the Windows GPU through /dev/dxg;
+# set GALLIUM_DRIVER=llvmpipe in .env to fall back to software rendering.
+x-wslg: &wslg
+  volumes:
+    - .:/workspace
+    - /tmp/.X11-unix:/tmp/.X11-unix
+    - /mnt/wslg:/mnt/wslg
+    - /usr/lib/wsl:/usr/lib/wsl:ro
+  devices:
+    - /dev/dxg:/dev/dxg
+  environment:
+    DISPLAY: ${DISPLAY:-:0}
+    WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-wayland-0}
+    XDG_RUNTIME_DIR: /mnt/wslg/runtime-dir
+    PULSE_SERVER: unix:/mnt/wslg/PulseServer
+    LD_LIBRARY_PATH: /usr/lib/wsl/lib
+    GALLIUM_DRIVER: ${GALLIUM_DRIVER:-d3d12}
+    QT_X11_NO_MITSHM: "1"
+
+services:
+  sim:
+    <<: *wslg
+  app:
+    <<: *wslg

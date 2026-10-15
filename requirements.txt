@@ -1,0 +1,9 @@
+# Pinned to the versions verified with this project.
+# The gRPC-based MAVSDK-Python API, now published as mavsdk-grpc
+# (import mavsdk_grpc). The plain 'mavsdk' 4.x package is a different,
+# native binding; see DESIGN.md.
+mavsdk-grpc==4.0.5
+opencv-python==5.0.0.93
+numpy==2.5.4
+PyYAML==6.0.3
+pytest==9.1.1

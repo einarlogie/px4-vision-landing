@@ -1,0 +1,47 @@
+# Base services. Works headless anywhere Docker runs.
+# compose.wslg.yaml (enabled via .env) adds the WSLg display and GPU.
+x-common: &common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  image: px4-vision-landing:dev
+  volumes:
+    - .:/workspace
+  environment: &common-env
+    # Same gz-transport partition in both containers so they discover each other.
+    GZ_PARTITION: vland
+    GZ_SIM_RESOURCE_PATH: /workspace/models:/workspace/worlds:/opt/px4-gazebo/share/gz/models:/opt/px4-gazebo/share/gz/worlds
+
+services:
+  sim:
+    <<: *common
+    entrypoint: ["/workspace/docker/sim-entrypoint.sh"]
+    environment:
+      <<: *common-env
+      # Our own vehicle model (models/x500_vision_down) flown with the stock
+      # x500 airframe parameters (SYS_AUTOSTART 4001).
+      PX4_SIM_MODEL: gz_x500_vision_down
+      PX4_SYS_AUTOSTART: "4001"
+      PX4_GZ_MODELS: /workspace/models
+      PX4_GZ_WORLDS: /workspace/worlds
+      PX4_GZ_WORLD: ${WORLD:-landing_pad}
+      GUI: ${GUI:-1}                       # 0 = no Gazebo window
+      SENSOR_RENDER_DRIVER: ${SENSOR_RENDER_DRIVER:-llvmpipe}
+      GUI_RENDER_DRIVER: ${GUI_RENDER_DRIVER:-d3d12}
+      PX4_GZ_SIM_RENDER_ENGINE: ${RENDER_ENGINE:-}
+    # PX4 runs an interactive shell (pxh>); keep a TTY so it doesn't exit.
+    tty: true
+    stdin_open: true
+    shm_size: 1gb
+
+  app:
+    <<: *common
+    # Shares sim's network namespace: MAVLink and gz-transport stay on localhost.
+    network_mode: service:sim
+    depends_on: [sim]
+    # Run as the WSL user so files written to the repo (videos, logs) aren't root-owned.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      <<: *common-env
+      HOME: /tmp
+    command: ["sleep", "infinity"]
