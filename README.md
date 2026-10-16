@@ -84,7 +84,7 @@ Everything runs in Docker; the only host requirements are:
 3. Work inside the WSL filesystem (`~/...`), not under `/mnt/c`.
 
 ```bash
-git clone https://github.com/<you>/px4-vision-landing.git ~/px4-vision-landing
+git clone https://github.com/einarlogie/px4-vision-landing.git ~/px4-vision-landing
 cd ~/px4-vision-landing
 docker compose up -d --build        # builds the image, starts PX4 + Gazebo
 ```
