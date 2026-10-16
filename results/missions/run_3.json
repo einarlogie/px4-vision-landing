@@ -1,0 +1,38 @@
+{
+  "mission": "demo-line-inspection",
+  "utc": "2026-10-16T01:21:49+00:00",
+  "outcome": "FINAL",
+  "landing_error_m": 0.0142,
+  "landing_error_ned_m": [
+    0.0031,
+    0.0138
+  ],
+  "marker_loss_events": 0,
+  "mission_sim_time_s": 110.5,
+  "captures": [
+    {
+      "tower": "T1",
+      "image": "tower_T1.png",
+      "t_sim": 41.45,
+      "north_m": 14.93,
+      "east_m": 11.98,
+      "altitude_m": 18.08
+    },
+    {
+      "tower": "T2",
+      "image": "tower_T2.png",
+      "t_sim": 56.3,
+      "north_m": 34.92,
+      "east_m": 12.02,
+      "altitude_m": 17.99
+    },
+    {
+      "tower": "T3",
+      "image": "tower_T3.png",
+      "t_sim": 71.74,
+      "north_m": 54.95,
+      "east_m": 11.99,
+      "altitude_m": 18.06
+    }
+  ]
+}
