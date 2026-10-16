@@ -29,6 +29,10 @@ services:
       SENSOR_RENDER_DRIVER: ${SENSOR_RENDER_DRIVER:-llvmpipe}
       GUI_RENDER_DRIVER: ${GUI_RENDER_DRIVER:-d3d12}
       PX4_GZ_SIM_RENDER_ENGINE: ${RENDER_ENGINE:-}
+      # PX4's onboard ULog logger is off by default: in this PX4 build its
+      # thread intermittently segfaults in SITL (DESIGN.md §9). ULOG=1 turns
+      # it back on (SDLOG_BACKEND bit 0 = log to file).
+      PX4_PARAM_SDLOG_BACKEND: ${ULOG:-0}
     # PX4 runs an interactive shell (pxh>); keep a TTY so it doesn't exit.
     tty: true
     stdin_open: true

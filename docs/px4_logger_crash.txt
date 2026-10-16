@@ -1,0 +1,21 @@
+PX4 SITL crash captured under gdb (px4io/px4-sitl-gazebo:v1.18.0-rc1, run seed114, 2026-10-16).
+Excerpt of the gdb output from the sim container log: the faulting thread and its stack.
+The px4 binary is stripped, so most frames have no symbol.
+
+INFO  [commander] Takeoff detected	
+
+Thread 187 "logger" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7fffcb7fe6c0 (LWP 524)]
+0x00007ffff740b0d4 in pthread_mutex_lock () from /lib/x86_64-linux-gnu/libc.so.6
+  Id   Target Id                                         Frame 
+Thread 187 (Thread 0x7fffcb7fe6c0 (LWP 524) "logger"):
+#0  0x00007ffff740b0d4 in pthread_mutex_lock () from /lib/x86_64-linux-gnu/libc.so.6
+#1  0x0000555555877282 in px4_sem_post ()
+#2  0x00005555557cd556 in ?? ()
+#3  0x00005555557c96a3 in ?? ()
+#4  0x00005555557c9c6e in ?? ()
+#5  0x00005555556a2123 in ?? ()
+#6  0x0000555555876fb2 in ?? ()
+#7  0x00005555558768db in ?? ()
+#8  0x00007ffff7407b84 in ?? () from /lib/x86_64-linux-gnu/libc.so.6
+#9  0x00007ffff7494ecc in ?? () from /lib/x86_64-linux-gnu/libc.so.6

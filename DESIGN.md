@@ -308,3 +308,42 @@ conductor is a much harder version of the same problem:
 - **Safety architecture.** Geofences, a hard minimum distance to
   conductors, link-loss behaviour and an independent abort path. Here,
   ABORT just lands normally.
+
+## 9. Investigation: intermittent PX4 SITL crash
+
+**Symptom.** Occasionally the `sim` container died mid-flight with exit
+code 139 (SIGSEGV in PX4, which is the container's main process). Nothing
+was logged; telemetry froze at its last value and the camera showed the
+drone tumbling. It happened 3 times in roughly 60 flights: once after a
+landing in milestone 1, once in landing run seed 25, and once 1.5 minutes
+into a mission. Docker reported no out-of-memory kill.
+
+**Gathering evidence.** A crash that rare can't be debugged by retrying.
+I built a throwaway debug image (the project image plus `gdb`), ran PX4
+under `gdb -batch` so a SIGSEGV prints every thread's stack, and made
+`tools/batch_landings.sh` keep each run's simulator log. Three missions and
+19 landings under gdb ran clean; run 114 crashed and the backtrace was
+captured ([`docs/px4_logger_crash.txt`](docs/px4_logger_crash.txt)):
+
+```
+Thread 187 "logger" received signal SIGSEGV, Segmentation fault.
+#0  pthread_mutex_lock () from libc.so.6
+#1  px4_sem_post ()
+#2  ?? ...
+```
+
+The fault is in PX4's own onboard ULog **logger** thread: posting a
+semaphore whose mutex is invalid. That's consistent with a lifetime or
+initialisation bug around the semaphore, but that is inference, not
+something the trace proves. The binary is
+stripped, so the trail ends there. Pinning it down further would mean a
+PX4 debug build from source; reporting it upstream with this trace is the
+right next step.
+
+**Mitigation.** This project doesn't use PX4's ULog files, so the logger
+is disabled in SITL via PX4's environment parameter override
+(`PX4_PARAM_SDLOG_BACKEND=0` in `compose.yaml`; `ULOG=1` turns it back on).
+That removes the crashing thread entirely, rather than masking the symptom.
+Every landing result in the README was re-run with this configuration.
+Separately, scripts now record a crashed run as `ERROR` instead of hanging
+or vanishing from the statistics.
