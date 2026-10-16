@@ -25,7 +25,7 @@ for seed in $(seq "$first" "$last"); do
   docker compose up -d >/dev/null 2>&1
   if ! wait_ready; then echo "seed $seed: simulator did not start"; continue; fi
   timeout 600 docker compose exec -T app python scripts/precision_land.py \
-      --seed "$seed" --run-id "seed$seed" "$@" 2>&1 | grep -E "RESULT|Traceback" | grep -v "Sending message"
+      --seed "$seed" --run-id "seed$seed" --results results/landing_runs.csv "$@" 2>&1 | grep -E "RESULT|Traceback" | grep -v "Sending message"
   # Keep the simulator log of every run, and flag a crashed simulator.
   mkdir -p output/logs
   docker compose logs --no-color sim > "output/logs/seed$seed.log" 2>&1

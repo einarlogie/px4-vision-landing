@@ -5,7 +5,7 @@
    approach is limited by GPS and map accuracy.
 2. Hand over to the vision controller (vland/landing.py).
 3. After touchdown, measure the landing error against Gazebo ground truth
-   and append one row to the results CSV.
+   and append one row to a results CSV.
 
 Run in the app container, on a fresh sim:
     python scripts/precision_land.py --random-offset 2.0 --seed 1
@@ -125,6 +125,7 @@ if __name__ == "__main__":
     p.add_argument("--world", default="landing_pad")
     p.add_argument("--run-id", default="")
     p.add_argument("--video", default="output/land_{run}.mp4")
-    p.add_argument("--results", default="results/landing_runs.csv")
+    p.add_argument("--results", default="output/landing_runs.csv",
+                   help="CSV to append to; tools/batch_landings.sh writes results/landing_runs.csv")
     p.add_argument("--show", action="store_true")
     asyncio.run(main(p.parse_args()))

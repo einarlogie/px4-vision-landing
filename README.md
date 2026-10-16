@@ -114,8 +114,9 @@ docker compose exec app python -m pytest -q
 
 Each flight script expects a freshly started simulator (drone on the
 ground at home): `docker compose down && docker compose up -d`. Videos and
-images go to `output/` (git-ignored). Landing results are appended to
-`results/landing_runs.csv`.
+images go to `output/` (git-ignored), and each landing appends a row to
+`output/landing_runs.csv`. The published results in `results/` come only
+from `tools/batch_landings.sh`.
 
 | Variable | Default | Effect |
 |---|---|---|
@@ -124,6 +125,8 @@ images go to `output/` (git-ignored). Landing results are appended to
 | `SENSOR_RENDER_DRIVER` | `llvmpipe` | Mesa driver for the camera rendering (see DESIGN.md §3.1) |
 | `GUI_RENDER_DRIVER` | `d3d12` | Mesa driver for the Gazebo window |
 | `ULOG` | `0` | `1` re-enables PX4's onboard ULog logger (off because of a SITL crash, see DESIGN.md §9) |
+
+Set them when starting the simulator, e.g. `GUI=0 WORLD=powerline docker compose up -d`.
 
 **QGroundControl** (optional): PX4 sends its ground-station link to the
 Windows host on UDP 14550, where QGroundControl listens by default. The
