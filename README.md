@@ -85,8 +85,15 @@ cd ~/px4-vision-landing
 docker compose up -d --build        # builds the image, starts PX4 + Gazebo
 ```
 
-The Gazebo window appears on the Windows desktop after ~30 s. The first
-build downloads PX4's prebuilt simulation image (~0.7 GB).
+The Gazebo window appears on the Windows desktop once PX4 has spawned the
+drone (~30–60 s), with its camera following the drone. The first build
+downloads PX4's prebuilt simulation image (~0.7 GB).
+
+On a laptop the Gazebo window is a coarse live view. It updates in bursts
+and doesn't respond well to the mouse, because WSLg draws it through the
+GPU bridge while the CPU renders the drone's camera. For a smooth view use
+`--show` (the onboard camera window) or the videos the scripts save to
+`output/`.
 
 On a native Linux host without WSLg, remove `compose.wslg.yaml` from
 `COMPOSE_FILE` in [`.env`](.env) and run headless with `GUI=0`.

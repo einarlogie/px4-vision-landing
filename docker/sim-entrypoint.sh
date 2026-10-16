@@ -26,9 +26,28 @@ if [ -n "$HOST_IP" ] && ! grep -q "mavlink start -x -t" "$RC_MAVLINK"; then
     echo "[sim-entrypoint] GCS MAVLink -> $HOST_IP:14550 (QGroundControl on the host)"
 fi
 
-if [ "${GUI:-1}" = "1" ] && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
+MODEL_INSTANCE="${PX4_SIM_MODEL#gz_}_0"
+
+# Start the GUI only once PX4 has spawned the drone: a GUI that connects
+# before the spawn shows the world but never picks up the drone. Then point
+# its camera at the drone once the GUI is listening for that command.
+start_gui() {
+    for _ in $(seq 1 180); do
+        gz topic -l 2>/dev/null | grep -q "/model/$MODEL_INSTANCE/" && break
+        sleep 1
+    done
     echo "[sim-entrypoint] starting Gazebo GUI (GALLIUM_DRIVER=${GUI_RENDER_DRIVER:-d3d12})"
     GALLIUM_DRIVER="${GUI_RENDER_DRIVER:-d3d12}" gz sim -g >/tmp/gz-gui.log 2>&1 &
+    for _ in $(seq 1 120); do
+        gz topic -i -t /gui/track 2>/dev/null | grep -A1 "Subscribers" | grep -q "tcp://" && break
+        sleep 1
+    done
+    gz topic -t /gui/track -m gz.msgs.CameraTrack -p "track_mode: FOLLOW, follow_target: {name: '$MODEL_INSTANCE'}, follow_offset: {x: -4.0, y: -4.0, z: 3.0}, follow_pgain: 1.0, track_pgain: 1.0"
+    echo "[sim-entrypoint] GUI camera following $MODEL_INSTANCE"
+}
+
+if [ "${GUI:-1}" = "1" ] && [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
+    start_gui &
 fi
 
 export HEADLESS=1
