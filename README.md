@@ -10,9 +10,10 @@ then takes over for touchdown. The mission flies a line of simplified
 transmission towers from a YAML plan, photographs each tower, returns and
 lands on the pad by vision.
 
-▶ **[Demo video, 60 s](docs/media/demo.mp4)**: one precision landing from
-outside and through the onboard camera, then the inspection mission. Built
-from recorded runs by [`tools/make_demo_video.sh`](tools/make_demo_video.sh).
+[![Demo: a precision landing seen from outside and through the onboard camera, then the inspection mission](docs/media/demo.gif)](docs/media/demo.mp4)
+
+*Above at 1.5× speed. [Full-quality demo video (60 s)](docs/media/demo.mp4),
+built from recorded runs by [`tools/make_demo_video.sh`](tools/make_demo_video.sh).*
 
 | Precision landing, external view (2× speed) | Same flight, onboard camera (1.5× speed) |
 |---|---|
