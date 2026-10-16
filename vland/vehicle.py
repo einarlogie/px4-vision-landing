@@ -168,6 +168,28 @@ class Vehicle:
                     return
                 await asyncio.sleep(0.1)
 
+    async def fly_to(self, north: float, east: float, down: float, yaw_deg: float, speed: float,
+                     tol: float = 0.5, rate_hz: float = 20.0, timeout: float = 600.0) -> None:
+        """Fly to a local NED point in a straight line at a set speed.
+
+        Position setpoints alone would let PX4 fly at its maximum velocity, so
+        this sends velocity setpoints instead: full speed along the line,
+        slowing in proportion to distance over the last few metres, then
+        stopping. Timeout is wall-clock.
+        """
+        target = np.array([north, east, down])
+        async with asyncio.timeout(timeout):
+            while True:
+                delta = target - self.state.pos_ned
+                dist = float(np.linalg.norm(delta))
+                if dist < tol:
+                    break
+                v = delta / dist * min(speed, 0.8 * dist)
+                await self.set_velocity_ned(v[0], v[1], v[2], yaw_deg)
+                await asyncio.sleep(1.0 / rate_hz)
+        # Hold the exact point (position setpoint) to settle.
+        await self.goto_ned(north, east, down, yaw_deg, tol=0.3, timeout=timeout)
+
     @property
     def heading_deg(self) -> float:
         w, x, y, z = self.state.q_wxyz
